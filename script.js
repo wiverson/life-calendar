@@ -53,22 +53,28 @@ class LifeCalendar {
             }
 
             if (savedEvents) {
-                this.events = JSON.parse(savedEvents);
-                // Validate each event
-                this.events = this.events.filter(event => {
-                    try {
-                        const startDate = new Date(event.startDate);
-                        const endDate = new Date(event.endDate);
-                        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                            console.warn('Filtered out event with invalid dates:', event);
-                            return false;
-                        }
-                        return true;
-                    } catch (error) {
-                        console.warn('Filtered out invalid event:', event, error);
-                        return false;
-                    }
+                // Parse events and normalize dates
+                let events = JSON.parse(savedEvents);
+                
+                // Remove duplicate events (same name and date range)
+                const uniqueEvents = new Map();
+                events.forEach(event => {
+                    const key = `${event.name}-${event.startDate}-${event.endDate}`;
+                    uniqueEvents.set(key, event);
                 });
+                events = Array.from(uniqueEvents.values());
+                
+                // Normalize all dates to midnight UTC
+                this.events = events.map(event => ({
+                    ...event,
+                    startDate: new Date(event.startDate).toISOString().split('T')[0],
+                    endDate: new Date(event.endDate).toISOString().split('T')[0]
+                }));
+                
+                console.log('Normalized events:', this.events);
+                
+                // Save the normalized events back to localStorage
+                localStorage.setItem('events', JSON.stringify(this.events));
             }
 
             if (this.birthday) {
@@ -218,28 +224,25 @@ class LifeCalendar {
     getEventsForWeek(weekDate) {
         try {
             return this.events.filter(event => {
-                const startDate = new Date(event.startDate);
-                const endDate = new Date(event.endDate);
+                // Convert all dates to midnight UTC for comparison
+                const startDate = new Date(event.startDate + 'T00:00:00.000Z');
+                const endDate = new Date(event.endDate + 'T00:00:00.000Z');
+                const weekStart = new Date(weekDate.toISOString().split('T')[0] + 'T00:00:00.000Z');
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
                 
                 if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                     console.warn('Invalid dates in event:', event);
                     return false;
                 }
-                
-                // Create end of week date
-                const weekEndDate = new Date(weekDate);
-                weekEndDate.setDate(weekEndDate.getDate() + 6);
-                
+
                 // Check if the week overlaps with the event
-                const hasOverlap = (
-                    // Week starts during or before the event AND ends after or during the event
-                    (weekDate <= endDate && weekEndDate >= startDate)
-                );
+                const hasOverlap = (weekStart <= endDate && weekEnd >= startDate);
                 
                 if (hasOverlap) {
                     console.log('Event overlaps with week:', {
-                        weekStart: weekDate.toISOString(),
-                        weekEnd: weekEndDate.toISOString(),
+                        weekStart: weekStart.toISOString(),
+                        weekEnd: weekEnd.toISOString(),
                         eventStart: startDate.toISOString(),
                         eventEnd: endDate.toISOString(),
                         event: event
@@ -281,8 +284,8 @@ class LifeCalendar {
         
         try {
             const name = document.getElementById('event-name').value;
-            const startDate = new Date(document.getElementById('event-start').value);
-            const endDate = new Date(document.getElementById('event-end').value);
+            const startDate = new Date(document.getElementById('event-start').value + 'T00:00:00.000Z');
+            const endDate = new Date(document.getElementById('event-end').value + 'T00:00:00.000Z');
             const color = document.getElementById('event-color').value;
 
             // Validate dates
@@ -302,8 +305,8 @@ class LifeCalendar {
             const eventData = {
                 id: this.selectedEventId || Date.now(),
                 name,
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString(),
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
                 color
             };
 
