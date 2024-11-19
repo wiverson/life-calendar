@@ -36,29 +36,64 @@ class LifeCalendar {
     }
 
     loadFromLocalStorage() {
-        const savedBirthday = localStorage.getItem('birthday');
-        const savedEvents = localStorage.getItem('events');
+        try {
+            const savedBirthday = localStorage.getItem('birthday');
+            const savedEvents = localStorage.getItem('events');
 
-        if (savedBirthday) {
-            this.birthday = new Date(savedBirthday);
-            this.birthdayInput.value = this.formatDateForInput(this.birthday);
-            this.showCalendarView();
-        }
+            console.log('Loading from localStorage - Birthday:', savedBirthday);
+            console.log('Loading from localStorage - Events:', savedEvents);
 
-        if (savedEvents) {
-            this.events = JSON.parse(savedEvents);
-        }
+            if (savedBirthday) {
+                this.birthday = new Date(savedBirthday);
+                if (isNaN(this.birthday.getTime())) {
+                    throw new Error('Invalid birthday date in localStorage');
+                }
+                this.birthdayInput.value = this.formatDateForInput(this.birthday);
+                this.showCalendarView();
+            }
 
-        if (this.birthday) {
-            this.renderCalendar();
+            if (savedEvents) {
+                this.events = JSON.parse(savedEvents);
+                // Validate each event
+                this.events = this.events.filter(event => {
+                    try {
+                        const startDate = new Date(event.startDate);
+                        const endDate = new Date(event.endDate);
+                        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                            console.warn('Filtered out event with invalid dates:', event);
+                            return false;
+                        }
+                        return true;
+                    } catch (error) {
+                        console.warn('Filtered out invalid event:', event, error);
+                        return false;
+                    }
+                });
+            }
+
+            if (this.birthday) {
+                this.renderCalendar();
+            }
+        } catch (error) {
+            console.error('Error loading from localStorage:', error);
+            alert('Failed to load saved data. Starting fresh.');
+            this.birthday = null;
+            this.events = [];
+            localStorage.clear();
         }
     }
 
     saveToLocalStorage() {
-        if (this.birthday) {
-            localStorage.setItem('birthday', this.birthday.toISOString());
+        try {
+            if (this.birthday) {
+                localStorage.setItem('birthday', this.birthday.toISOString());
+            }
+            console.log('Saving events to localStorage:', this.events);
+            localStorage.setItem('events', JSON.stringify(this.events));
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+            alert('Failed to save data. Your browser storage might be full or disabled.');
         }
-        localStorage.setItem('events', JSON.stringify(this.events));
     }
 
     handleBirthdaySubmit() {
@@ -80,99 +115,121 @@ class LifeCalendar {
     }
 
     renderCalendar() {
-        this.calendarGrid.innerHTML = '';
-        const startDate = new Date(this.birthday);
-        
-        // Add month labels aligned with birthday
-        const monthsContainer = document.createElement('div');
-        monthsContainer.className = 'months-container';
-        
-        // Create an array to store the weeks that belong to each month
-        const monthWeeks = new Array(52).fill(null).map((_, weekIndex) => {
-            const weekDate = new Date(startDate);
-            weekDate.setDate(weekDate.getDate() + (weekIndex * 7));
-            return {
-                month: weekDate.getMonth(),
-                year: weekDate.getFullYear()
-            };
-        });
-        
-        // Group consecutive weeks by month
-        let currentMonth = null;
-        let currentWeeks = 0;
-        let monthData = [];
-        
-        monthWeeks.forEach((week, index) => {
-            const monthKey = `${week.year}-${week.month}`;
+        try {
+            console.log('Rendering calendar with birthday:', this.birthday);
+            console.log('Current events:', this.events);
             
-            if (monthKey !== currentMonth) {
-                if (currentMonth !== null) {
+            this.calendarGrid.innerHTML = '';
+            const startDate = new Date(this.birthday);
+            
+            // Add month labels aligned with birthday
+            const monthsContainer = document.createElement('div');
+            monthsContainer.className = 'months-container';
+            
+            // Create an array to store the weeks that belong to each month
+            const monthWeeks = new Array(52).fill(null).map((_, weekIndex) => {
+                const weekDate = new Date(startDate);
+                weekDate.setDate(weekDate.getDate() + (weekIndex * 7));
+                return {
+                    month: weekDate.getMonth(),
+                    year: weekDate.getFullYear()
+                };
+            });
+            
+            // Group consecutive weeks by month
+            let currentMonth = null;
+            let currentWeeks = 0;
+            let monthData = [];
+            
+            monthWeeks.forEach((week, index) => {
+                const monthKey = `${week.year}-${week.month}`;
+                
+                if (monthKey !== currentMonth) {
+                    if (currentMonth !== null) {
+                        monthData.push({
+                            name: new Date(startDate.getFullYear(), week.month - 1, 1)
+                                .toLocaleString('default', { month: 'short' }),
+                            weeks: currentWeeks
+                        });
+                    }
+                    currentMonth = monthKey;
+                    currentWeeks = 1;
+                } else {
+                    currentWeeks++;
+                }
+                
+                // Handle the last month
+                if (index === monthWeeks.length - 1) {
                     monthData.push({
-                        name: new Date(startDate.getFullYear(), week.month - 1, 1)
+                        name: new Date(week.year, week.month, 1)
                             .toLocaleString('default', { month: 'short' }),
                         weeks: currentWeeks
                     });
                 }
-                currentMonth = monthKey;
-                currentWeeks = 1;
-            } else {
-                currentWeeks++;
-            }
+            });
             
-            // Handle the last month
-            if (index === monthWeeks.length - 1) {
-                monthData.push({
-                    name: new Date(week.year, week.month, 1)
-                        .toLocaleString('default', { month: 'short' }),
-                    weeks: currentWeeks
-                });
-            }
-        });
-        
-        // Create month labels with flex-basis proportional to their weeks
-        monthData.forEach(month => {
-            const monthLabel = document.createElement('div');
-            monthLabel.className = 'month-label';
-            monthLabel.textContent = month.name;
-            monthLabel.style.flexBasis = `${(month.weeks / 52) * 100}%`;
-            monthsContainer.appendChild(monthLabel);
-        });
-        
-        this.calendarGrid.appendChild(monthsContainer);
+            // Create month labels with flex-basis proportional to their weeks
+            monthData.forEach(month => {
+                const monthLabel = document.createElement('div');
+                monthLabel.className = 'month-label';
+                monthLabel.textContent = month.name;
+                monthLabel.style.flexBasis = `${(month.weeks / 52) * 100}%`;
+                monthsContainer.appendChild(monthLabel);
+            });
+            
+            this.calendarGrid.appendChild(monthsContainer);
 
-        // Render grid cells
-        const totalCells = 52 * 100;
-        for (let i = 0; i < totalCells; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            
-            const weekStart = new Date(startDate);
-            weekStart.setDate(weekStart.getDate() + (i * 7));
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekEnd.getDate() + 6);
-            
-            const events = this.getEventsForWeek(weekStart);
-            
-            // Add tooltip with date range and event name if present
-            let tooltip = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
-            if (events.length > 0) {
-                tooltip += `\n${events[0].name}`;
-                cell.className += ' has-event';
-                cell.style.backgroundColor = events[0].color;
-                cell.addEventListener('click', () => this.openEventModal(events[0]));
-            }
-            cell.title = tooltip;
+            // Render grid cells
+            const totalCells = 52 * 100;
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                
+                const weekStart = new Date(startDate);
+                weekStart.setDate(weekStart.getDate() + (i * 7));
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                
+                const events = this.getEventsForWeek(weekStart);
+                
+                // Add tooltip with date range and event name if present
+                let tooltip = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
+                if (events.length > 0) {
+                    tooltip += `\n${events[0].name}`;
+                    cell.className += ' has-event';
+                    cell.style.backgroundColor = events[0].color;
+                    cell.addEventListener('click', () => this.openEventModal(events[0]));
+                }
+                cell.title = tooltip;
 
-            this.calendarGrid.appendChild(cell);
+                this.calendarGrid.appendChild(cell);
+            }
+        } catch (error) {
+            console.error('Error rendering calendar:', error);
         }
     }
 
     getEventsForWeek(weekDate) {
-        return this.events.filter(event => {
-            const startDate = new Date(event.startDate);
-            const endDate = new Date(event.endDate);
-            return weekDate >= startDate && weekDate <= endDate;
-        });
+        try {
+            return this.events.filter(event => {
+                const startDate = new Date(event.startDate);
+                const endDate = new Date(event.endDate);
+                
+                if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                    console.warn('Invalid dates in event:', event);
+                    return false;
+                }
+                
+                const isInRange = weekDate >= startDate && weekDate <= endDate;
+                if (isInRange) {
+                    console.log('Found event for week:', weekDate, event);
+                }
+                return isInRange;
+            });
+        } catch (error) {
+            console.error('Error getting events for week:', weekDate, error);
+            return [];
+        }
     }
 
     openEventModal(event = null) {
@@ -199,27 +256,57 @@ class LifeCalendar {
 
     handleEventSubmit(e) {
         e.preventDefault();
+        
+        try {
+            const name = document.getElementById('event-name').value;
+            const startDate = new Date(document.getElementById('event-start').value);
+            const endDate = new Date(document.getElementById('event-end').value);
+            const color = document.getElementById('event-color').value;
 
-        const eventData = {
-            id: this.selectedEventId || Date.now(),
-            name: document.getElementById('event-name').value,
-            startDate: document.getElementById('event-start').value,
-            endDate: document.getElementById('event-end').value,
-            color: document.getElementById('event-color').value
-        };
-
-        if (this.selectedEventId) {
-            const index = this.events.findIndex(e => e.id === this.selectedEventId);
-            if (index !== -1) {
-                this.events[index] = eventData;
+            // Validate dates
+            if (isNaN(startDate.getTime())) {
+                throw new Error('Invalid start date');
             }
-        } else {
-            this.events.push(eventData);
-        }
+            if (isNaN(endDate.getTime())) {
+                throw new Error('Invalid end date');
+            }
+            if (endDate < startDate) {
+                throw new Error('End date cannot be before start date');
+            }
+            if (startDate < this.birthday) {
+                throw new Error('Event cannot start before your birthday');
+            }
 
-        this.saveToLocalStorage();
-        this.renderCalendar();
-        this.closeEventModal();
+            const eventData = {
+                id: this.selectedEventId || Date.now(),
+                name,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                color
+            };
+
+            console.log('Adding/Updating event:', eventData);
+
+            if (this.selectedEventId) {
+                const index = this.events.findIndex(e => e.id === this.selectedEventId);
+                if (index !== -1) {
+                    this.events[index] = eventData;
+                    console.log('Updated event at index:', index);
+                } else {
+                    console.warn('Could not find event to update with ID:', this.selectedEventId);
+                }
+            } else {
+                this.events.push(eventData);
+                console.log('Added new event. Total events:', this.events.length);
+            }
+
+            this.saveToLocalStorage();
+            this.renderCalendar();
+            this.closeEventModal();
+        } catch (error) {
+            console.error('Error handling event submission:', error);
+            alert(error.message || 'Failed to save event. Please check the dates and try again.');
+        }
     }
 
     deleteEvent() {
