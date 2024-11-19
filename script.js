@@ -147,7 +147,7 @@ class LifeCalendar {
                 if (monthKey !== currentMonth) {
                     if (currentMonth !== null) {
                         monthData.push({
-                            name: new Date(startDate.getFullYear(), week.month - 1, 1)
+                            name: new Date(week.year, week.month - 1, 1)
                                 .toLocaleString('default', { month: 'short' }),
                             weeks: currentWeeks
                         });
@@ -187,10 +187,16 @@ class LifeCalendar {
                 
                 const weekStart = new Date(startDate);
                 weekStart.setDate(weekStart.getDate() + (i * 7));
+                
+                // Create a deep copy for the week end date
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekEnd.getDate() + 6);
                 
                 const events = this.getEventsForWeek(weekStart);
+                
+                if (events.length > 0) {
+                    console.log(`Cell ${i}: Found events for week ${weekStart.toISOString()} - ${weekEnd.toISOString()}:`, events);
+                }
                 
                 // Add tooltip with date range and event name if present
                 let tooltip = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
@@ -220,11 +226,27 @@ class LifeCalendar {
                     return false;
                 }
                 
-                const isInRange = weekDate >= startDate && weekDate <= endDate;
-                if (isInRange) {
-                    console.log('Found event for week:', weekDate, event);
+                // Create end of week date
+                const weekEndDate = new Date(weekDate);
+                weekEndDate.setDate(weekEndDate.getDate() + 6);
+                
+                // Check if the week overlaps with the event
+                const hasOverlap = (
+                    // Week starts during or before the event AND ends after or during the event
+                    (weekDate <= endDate && weekEndDate >= startDate)
+                );
+                
+                if (hasOverlap) {
+                    console.log('Event overlaps with week:', {
+                        weekStart: weekDate.toISOString(),
+                        weekEnd: weekEndDate.toISOString(),
+                        eventStart: startDate.toISOString(),
+                        eventEnd: endDate.toISOString(),
+                        event: event
+                    });
                 }
-                return isInRange;
+                
+                return hasOverlap;
             });
         } catch (error) {
             console.error('Error getting events for week:', weekDate, error);
