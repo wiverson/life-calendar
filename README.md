@@ -13,7 +13,7 @@ A beautiful, interactive visualization of your life in weeks, inspired by the vi
 
 ## Try It Out
 
-Visit [your-username.github.io/life-calendar](https://your-username.github.io/life-calendar) to use the application.
+Visit [wiverson.github.io/life-calendar](https://wiverson.github.io/life-calendar) to use the application.
 
 ## Local Development
 
